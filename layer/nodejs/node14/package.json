@@ -1,0 +1,12 @@
+{
+  "name": "sqs-service",
+  "version": "1.0.0",
+  "description": "Serverless Framework Node.js SQS Producer-Consumer on AWS",
+  "author": "Hardik Thami",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-lambda": "^3.121.0",
+    "@aws-sdk/client-sqs": "^3.121.0"
+  },
+  "devDependencies": {}
+}

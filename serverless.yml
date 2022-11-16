@@ -1,0 +1,87 @@
+service: sqs-service
+frameworkVersion: '3'
+
+plugins:
+  - serverless-offline
+
+package:
+  exclude:
+    - node_modules/**
+
+provider:
+  name: aws
+  region: ap-south-1
+  runtime: nodejs14.x
+  endpointType: REGIONAL
+  environment:
+    QUEUE_URL: !Sub https://sqs.${self:provider.region}.amazonaws.com/${AWS::AccountId}/MyQueue.fifo
+  apiGateway:
+    binaryMediaTypes:
+      - '*/*'
+  iam:
+    role:
+      statements:
+        - Effect: 'Allow'
+          Action:
+            - 'lambda:InvokeFunction'
+          Resource: !Sub 'arn:aws:lambda:${self:provider.region}:${AWS::AccountId}:function:sqs-service-dev-consumer'
+        - Effect: 'Allow'
+          Action:
+            - 'sqs:SendMessage'
+            - 'sqs:ReceiveMessage'
+            - 'sqs:DeleteMessage'
+            - 'sqs:GetQueueUrl'
+          Resource: !Sub 'arn:aws:sqs:${self:provider.region}:${AWS::AccountId}:MyQueue.fifo'
+        - Effect: 'Allow'
+          Action:
+            - 'sqs:ListQueues'
+          Resource: !Sub 'arn:aws:sqs:${self:provider.region}:${AWS::AccountId}:*'
+
+functions:
+  producer:
+    handler: producer.main
+    events:
+      - httpApi:
+          method: post
+          path: /produce
+    timeout: 25
+    layers:
+      - !Ref AwsSDKLambdaLayer
+  consumer:
+    handler: consumer.main
+    destinations:
+      onSuccess: producer
+    events:
+      - httpApi:
+          method: post
+          path: /consume
+    timeout: 25
+    layers:
+      - !Ref AwsSDKLambdaLayer
+
+resources:
+  Resources:
+    MyQueue:
+      Type: 'AWS::SQS::Queue'
+      Properties:
+        QueueName: "MyQueue.fifo"
+        FifoQueue: true
+        RedrivePolicy: 
+          deadLetterTargetArn: 
+            Fn::GetAtt: 
+              - "MyQueueDLQ"
+              - "Arn"
+          maxReceiveCount: 5
+    MyQueueDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: "MyQueueDLQ.fifo"
+        FifoQueue: true
+
+layers:
+  awsSDK:
+    path: ./layer
+    compatibleRuntimes:
+      - nodejs14.x
+    compatibleArchitectures:
+      - x86_64
